@@ -1,8 +1,8 @@
-import json
-from datetime import datetime, timezone
+import ipaddress
+from datetime import UTC, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, IPvAnyAddress, field_validator, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class AuditEvent(BaseModel):
@@ -26,14 +26,16 @@ class AuditEvent(BaseModel):
     @field_validator("source_ip")
     @classmethod
     def validate_ip(cls, v: str) -> str:
-        # Delegate to pydantic's IP parser; raises ValueError on invalid input.
-        IPvAnyAddress(v)
+        try:
+            ipaddress.ip_address(v)
+        except ValueError as exc:
+            raise ValueError(f"Invalid IP address: {v!r}") from exc
         return v
 
     @model_validator(mode="after")
     def _coerce_utc(self) -> "AuditEvent":
         # Normalise to UTC so comparisons are unambiguous.
-        self.event_time = self.event_time.astimezone(timezone.utc)
+        self.event_time = self.event_time.astimezone(UTC)
         return self
 
     # ── Kafka serialisation ────────────────────────────────────────────────────

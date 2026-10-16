@@ -1,6 +1,6 @@
 """Unit tests for the event generator."""
 
-from datetime import timezone
+from datetime import UTC
 
 from audit_pipeline.generator import generate_events
 from audit_pipeline.schema import AuditEvent
@@ -57,10 +57,7 @@ def test_duplicate_rate_roughly_honoured() -> None:
 
 def test_brute_force_produces_10_plus_failed_logins_for_one_actor() -> None:
     events, _ = _collect(200, seed=99, scenarios=["brute-force"])
-    failed_logins = [
-        e for e in events
-        if e.event_name == "ConsoleLogin" and e.outcome == "failure"
-    ]
+    failed_logins = [e for e in events if e.event_name == "ConsoleLogin" and e.outcome == "failure"]
     actors = {e.actor for e in failed_logins}
     # At least one actor must have ≥10 failed logins.
     counts = {actor: sum(1 for e in failed_logins if e.actor == actor) for actor in actors}
@@ -69,10 +66,7 @@ def test_brute_force_produces_10_plus_failed_logins_for_one_actor() -> None:
 
 def test_brute_force_logins_within_5_minute_window() -> None:
     events, _ = _collect(200, seed=99, scenarios=["brute-force"])
-    failed_logins = [
-        e for e in events
-        if e.event_name == "ConsoleLogin" and e.outcome == "failure"
-    ]
+    failed_logins = [e for e in events if e.event_name == "ConsoleLogin" and e.outcome == "failure"]
     actors = {e.actor for e in failed_logins}
     counts = {actor: sum(1 for e in failed_logins if e.actor == actor) for actor in actors}
     brute_actor = max(counts, key=lambda a: counts[a])
@@ -87,7 +81,8 @@ def test_brute_force_logins_within_5_minute_window() -> None:
 def test_privilege_escalation_produces_attach_policy_event() -> None:
     events, _ = _collect(200, seed=99, scenarios=["privilege-escalation"])
     escalation = [
-        e for e in events
+        e
+        for e in events
         if e.event_name == "AttachUserPolicy"
         and e.resource == "arn:aws:iam::aws:policy/AdministratorAccess"
     ]
@@ -103,7 +98,7 @@ def test_all_non_malformed_events_validate() -> None:
         # Re-validate to ensure the generator produces schema-conformant data.
         AuditEvent.model_validate(event.model_dump())
         assert event.event_time.tzinfo is not None
-        assert event.event_time.tzinfo == timezone.utc
+        assert event.event_time.tzinfo == UTC
 
 
 def test_malformed_rate_produces_bytes() -> None:

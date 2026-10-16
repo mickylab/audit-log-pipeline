@@ -40,7 +40,6 @@ ignore = ["B008"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["audit_pipeline"]
-src               = ["src"]
 
 [tool.mypy]
 python_version      = "3.12"

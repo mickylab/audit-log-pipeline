@@ -1,7 +1,7 @@
 """Unit tests for AuditEvent schema: serialisation, validation, and edge cases."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -12,7 +12,7 @@ from audit_pipeline.schema import AuditEvent
 def _valid_event(**overrides: object) -> AuditEvent:
     data: dict[str, object] = {
         "event_id": str(uuid.uuid4()),
-        "event_time": datetime(2024, 1, 1, 12, 0, 0, tzinfo=timezone.utc),
+        "event_time": datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC),
         "event_source": "signin.amazonaws.com",
         "event_name": "ConsoleLogin",
         "actor": "arn:aws:iam::123456789012:user/alice",
@@ -52,12 +52,21 @@ def test_round_trip_preserves_resource_arn() -> None:
 
 @pytest.mark.parametrize(
     "missing_field",
-    ["event_id", "event_time", "event_source", "event_name", "actor", "source_ip", "outcome", "raw"],
+    [
+        "event_id",
+        "event_time",
+        "event_source",
+        "event_name",
+        "actor",
+        "source_ip",
+        "outcome",
+        "raw",
+    ],  # noqa: E501
 )
 def test_missing_required_field_raises(missing_field: str) -> None:
     data = {
         "event_id": str(uuid.uuid4()),
-        "event_time": datetime(2024, 1, 1, tzinfo=timezone.utc),
+        "event_time": datetime(2024, 1, 1, tzinfo=UTC),
         "event_source": "s3.amazonaws.com",
         "event_name": "GetObject",
         "actor": "arn:aws:iam::123456789012:user/bob",
@@ -83,7 +92,7 @@ def test_non_utc_timezone_is_accepted_and_normalised() -> None:
 
     plus1 = timezone(timedelta(hours=1))
     event = _valid_event(event_time=datetime(2024, 1, 1, 13, 0, 0, tzinfo=plus1))
-    assert event.event_time.tzinfo == timezone.utc
+    assert event.event_time.tzinfo == UTC
     assert event.event_time.hour == 12  # normalised to UTC
 
 

@@ -1,6 +1,7 @@
 """Database persistence for audit events."""
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 from audit_pipeline.schema import AuditEvent
 
@@ -39,7 +40,7 @@ def insert_event(
                 event.source_ip,
                 event.outcome,
                 event.resource,
-                psycopg.types.json.Jsonb(event.raw),
+                Jsonb(event.raw),
                 partition,
                 offset,
             ),

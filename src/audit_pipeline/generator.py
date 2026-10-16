@@ -2,8 +2,8 @@
 
 import random
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 from faker import Faker
 
@@ -14,32 +14,51 @@ from audit_pipeline.schema import AuditEvent
 _ACCOUNT_ID = "123456789012"
 
 _IAM_USERS = [
-    "alice", "bob", "carol", "dave", "erin",
-    "frank", "grace", "heidi", "ivan", "judy",
-    "ken", "laura", "mike", "nina", "oscar",
-    "pat", "quinn", "ruth", "steve", "tina",
+    "alice",
+    "bob",
+    "carol",
+    "dave",
+    "erin",
+    "frank",
+    "grace",
+    "heidi",
+    "ivan",
+    "judy",
+    "ken",
+    "laura",
+    "mike",
+    "nina",
+    "oscar",
+    "pat",
+    "quinn",
+    "ruth",
+    "steve",
+    "tina",
 ]
 
 _S3_BUCKETS = [
-    "acme-data-lake", "acme-backups", "acme-logs",
-    "acme-assets", "acme-artifacts",
+    "acme-data-lake",
+    "acme-backups",
+    "acme-logs",
+    "acme-assets",
+    "acme-artifacts",
 ]
 
 _EVENT_MIX: list[tuple[str, str, str, float]] = [
     # (event_source, event_name, outcome, weight)
-    ("s3.amazonaws.com",       "GetObject",        "success", 0.35),
-    ("s3.amazonaws.com",       "ListBucket",       "success", 0.20),
-    ("s3.amazonaws.com",       "PutObject",        "success", 0.10),
-    ("s3.amazonaws.com",       "DeleteObject",     "success", 0.03),
-    ("signin.amazonaws.com",   "ConsoleLogin",     "success", 0.12),
-    ("sts.amazonaws.com",      "AssumeRole",       "success", 0.07),
-    ("iam.amazonaws.com",      "ListUsers",        "success", 0.05),
-    ("iam.amazonaws.com",      "AttachUserPolicy", "success", 0.01),
-    ("signin.amazonaws.com",   "ConsoleLogin",     "failure", 0.07),  # background failures
+    ("s3.amazonaws.com", "GetObject", "success", 0.35),
+    ("s3.amazonaws.com", "ListBucket", "success", 0.20),
+    ("s3.amazonaws.com", "PutObject", "success", 0.10),
+    ("s3.amazonaws.com", "DeleteObject", "success", 0.03),
+    ("signin.amazonaws.com", "ConsoleLogin", "success", 0.12),
+    ("sts.amazonaws.com", "AssumeRole", "success", 0.07),
+    ("iam.amazonaws.com", "ListUsers", "success", 0.05),
+    ("iam.amazonaws.com", "AttachUserPolicy", "success", 0.01),
+    ("signin.amazonaws.com", "ConsoleLogin", "failure", 0.07),  # background failures
 ]
 
 # Fixed epoch for deterministic timestamps in generated events.
-_EVENT_EPOCH = datetime(2024, 1, 1, tzinfo=timezone.utc)
+_EVENT_EPOCH = datetime(2024, 1, 1, tzinfo=UTC)
 
 
 def _rng_uuid(rng: random.Random) -> str:
@@ -118,22 +137,23 @@ def generate_events(
     # Use a fixed epoch so event_time is deterministic regardless of when the
     # generator runs.  Wall clock is only used for --duration mode.
     event_base_time = _EVENT_EPOCH
-    wall_start = datetime.now(timezone.utc)
+    wall_start = datetime.now(UTC)
     n = 0
 
     def _should_stop() -> bool:
         if count is not None:
             return n >= count
         if duration_seconds is not None:
-            return (datetime.now(timezone.utc) - wall_start).total_seconds() >= duration_seconds
+            return (datetime.now(UTC) - wall_start).total_seconds() >= duration_seconds
         return False
 
     # Interleave scenario events evenly across the stream.
     total = count or 1000
-    scenario_indices = {
-        int(i * total / max(len(scenario_events), 1))
-        for i in range(len(scenario_events))
-    } if scenario_events else set()
+    scenario_indices = (
+        {int(i * total / max(len(scenario_events), 1)) for i in range(len(scenario_events))}
+        if scenario_events
+        else set()
+    )
     scenario_queue = list(scenario_events)
 
     while not _should_stop():
@@ -177,7 +197,7 @@ def _random_event(
     base_time: datetime,
     out_of_order_rate: float,
 ) -> AuditEvent:
-    sources, names, outcomes, weights = zip(*_EVENT_MIX)
+    sources, names, outcomes, weights = zip(*_EVENT_MIX, strict=False)
     idx = rng.choices(range(len(_EVENT_MIX)), weights=list(weights), k=1)[0]
     event_source = sources[idx]
     event_name = names[idx]
@@ -227,17 +247,19 @@ def _build_scenario_events(
             raw = _build_raw(
                 "signin.amazonaws.com", "ConsoleLogin", victim, t, source_ip, "failure", None
             )
-            events.append(AuditEvent(
-                event_id=_rng_uuid(rng),
-                event_time=t,
-                event_source="signin.amazonaws.com",
-                event_name="ConsoleLogin",
-                actor=victim,
-                source_ip=source_ip,
-                outcome="failure",
-                resource=None,
-                raw=raw,
-            ))
+            events.append(
+                AuditEvent(
+                    event_id=_rng_uuid(rng),
+                    event_time=t,
+                    event_source="signin.amazonaws.com",
+                    event_name="ConsoleLogin",
+                    actor=victim,
+                    source_ip=source_ip,
+                    outcome="failure",
+                    resource=None,
+                    raw=raw,
+                )
+            )
 
     if "privilege-escalation" in scenarios:
         attacker = _arn(rng.choice(_IAM_USERS))
@@ -251,16 +273,18 @@ def _build_scenario_events(
             "userName": attacker.split("/")[-1],
             "policyArn": policy_arn,
         }
-        events.append(AuditEvent(
-            event_id=_rng_uuid(rng),
-            event_time=t,
-            event_source="iam.amazonaws.com",
-            event_name="AttachUserPolicy",
-            actor=attacker,
-            source_ip=source_ip,
-            outcome="success",
-            resource=policy_arn,
-            raw=raw,
-        ))
+        events.append(
+            AuditEvent(
+                event_id=_rng_uuid(rng),
+                event_time=t,
+                event_source="iam.amazonaws.com",
+                event_name="AttachUserPolicy",
+                actor=attacker,
+                source_ip=source_ip,
+                outcome="success",
+                resource=policy_arn,
+                raw=raw,
+            )
+        )
 
     return events

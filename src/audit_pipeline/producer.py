@@ -24,7 +24,7 @@ def _on_delivery(err: KafkaError | None, msg: Message) -> None:
     global _delivered, _failed
     if err:
         _failed += 1
-        log.warning("Delivery failed partition=%s offset=%s: %s", msg.partition(), msg.offset(), err)
+        log.warning("Delivery failed p=%s o=%s: %s", msg.partition(), msg.offset(), err)
     else:
         _delivered += 1
 
@@ -40,11 +40,13 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
-    producer = Producer({
-        "bootstrap.servers": settings.kafka_bootstrap_servers,
-        "acks": "all",
-        "enable.idempotence": "true",
-    })
+    producer = Producer(
+        {
+            "bootstrap.servers": settings.kafka_bootstrap_servers,
+            "acks": "all",
+            "enable.idempotence": "true",
+        }
+    )
 
     _shutdown = False
 

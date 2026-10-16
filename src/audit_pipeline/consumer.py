@@ -1,9 +1,9 @@
 """CLI entry point for the audit event consumer."""
 
 import argparse
+import contextlib
 import logging
 import signal
-import sys
 import time
 from typing import Any
 
@@ -27,7 +27,10 @@ _invalid = 0
 def _log_stats() -> None:
     log.info(
         "stats consumed=%d inserted=%d duplicates=%d invalid=%d",
-        _consumed, _inserted, _duplicates, _invalid,
+        _consumed,
+        _inserted,
+        _duplicates,
+        _invalid,
     )
 
 
@@ -43,12 +46,14 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
 
-    consumer = Consumer({
-        "bootstrap.servers": settings.kafka_bootstrap_servers,
-        "group.id": settings.kafka_consumer_group_id,
-        "enable.auto.commit": "false",
-        "auto.offset.reset": "earliest",
-    })
+    consumer = Consumer(
+        {
+            "bootstrap.servers": settings.kafka_bootstrap_servers,
+            "group.id": settings.kafka_consumer_group_id,
+            "enable.auto.commit": "false",
+            "auto.offset.reset": "earliest",
+        }
+    )
     consumer.subscribe([settings.kafka_topic])
 
     _shutdown = False
@@ -90,7 +95,7 @@ def main() -> None:
             if args.exit_when_idle:
                 if last_message_at is not None:
                     if (now - last_message_at) >= args.exit_when_idle:
-                        log.info("No messages for %ds — exiting (--exit-when-idle).", args.exit_when_idle)
+                        log.info("No messages for %ds — exiting.", args.exit_when_idle)
                         break
                 elif startup_deadline is not None and now >= startup_deadline:
                     log.info("No messages received in startup window — exiting (--exit-when-idle).")
@@ -101,16 +106,16 @@ def main() -> None:
                 continue
 
             if msg.error():
-                err: KafkaError = msg.error()
-                if err.code() == KafkaError._PARTITION_EOF:
+                err = msg.error()
+                if err is not None and err.code() == KafkaError._PARTITION_EOF:
                     continue
                 raise KafkaException(err)
 
             last_message_at = now
             _consumed += 1
-            partition: int = msg.partition()
-            offset: int = msg.offset()
-            raw_value: bytes = msg.value()
+            partition: int = msg.partition() or 0
+            offset: int = msg.offset() or 0
+            raw_value: bytes = msg.value() or b""
 
             # 1. Parse and validate.
             try:
@@ -118,7 +123,9 @@ def main() -> None:
             except Exception as exc:
                 log.warning(
                     "Validation failed partition=%d offset=%d: %s",
-                    partition, offset, exc,
+                    partition,
+                    offset,
+                    exc,
                 )
                 _invalid += 1
                 # TODO(week2): route to dead-letter topic instead of skipping
@@ -163,10 +170,8 @@ def _insert_with_retry(
             log.warning("DB error (will retry in %.0fs): %s", delay, exc)
             time.sleep(delay)
             delay = min(delay * 2, max_delay)
-            try:
+            with contextlib.suppress(Exception):
                 conn.rollback()
-            except Exception:
-                pass
             return None  # signal to caller to re-connect
 
 
