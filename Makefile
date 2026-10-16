@@ -7,7 +7,7 @@ SHELL := /bin/bash
 KAFKA_BOOTSTRAP_SERVERS ?= localhost:9092
 KAFKA_TOPIC             ?= audit.events
 KAFKA_CONSUMER_GROUP_ID ?= audit-pipeline
-POSTGRES_DSN            ?= postgresql://audit:audit@localhost:5432/audit
+POSTGRES_DSN            ?= postgresql://audit:audit@localhost:5433/audit
 LOG_LEVEL               ?= INFO
 
 export KAFKA_BOOTSTRAP_SERVERS KAFKA_TOPIC KAFKA_CONSUMER_GROUP_ID POSTGRES_DSN LOG_LEVEL

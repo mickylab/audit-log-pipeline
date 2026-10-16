@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     kafka_bootstrap_servers: str = "localhost:9092"
     kafka_topic: str = "audit.events"
     kafka_consumer_group_id: str = "audit-pipeline"
-    postgres_dsn: str = "postgresql://audit:audit@localhost:5432/audit"
+    postgres_dsn: str = "postgresql://audit:audit@localhost:5433/audit"
     log_level: str = "INFO"
 
     @field_validator("log_level")
