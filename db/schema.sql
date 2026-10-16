@@ -1,0 +1,2 @@
+-- Milestone 2: populated with the full schema; placeholder allows the image
+-- to start cleanly before Milestone 2 is committed.
